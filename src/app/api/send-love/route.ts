@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { buildLoveEmailHtml, type LoveEmailTheme } from "@/lib/love-email";
+import { randomUUID } from "node:crypto";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const maxScheduleOffsetMs = 30 * 24 * 60 * 60 * 1000;
+const maxInlineImageBytes = 1_000_000;
+const imageDataPrefix = "data:image/jpeg;base64,";
+const maxInlineImageDataLength =
+  imageDataPrefix.length + Math.ceil(maxInlineImageBytes / 3) * 4;
 const themes: LoveEmailTheme[] = ["rose", "midnight", "sunshine"];
 const isLoveEmailTheme = (value: unknown): value is LoveEmailTheme =>
   typeof value === "string" && themes.some((theme) => theme === value);
@@ -16,7 +20,8 @@ type SendLovePayload = {
   message?: unknown;
   signature?: unknown;
   theme?: unknown;
-  scheduledAt?: unknown;
+  saveDraft?: unknown;
+  image?: unknown;
 };
 
 function isSendLovePayload(value: unknown): value is SendLovePayload {
@@ -43,7 +48,8 @@ export async function POST(request: NextRequest) {
     message,
     signature,
     theme,
-    scheduledAt,
+    saveDraft,
+    image,
   } = payload;
   if (
     typeof to !== "string" ||
@@ -73,108 +79,50 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-
-  let scheduledDate: Date | undefined;
-  if (scheduledAt !== undefined) {
-    if (typeof scheduledAt !== "string") {
-      return NextResponse.json(
-        { error: "วันและเวลาที่ตั้งไว้ไม่ถูกต้อง" },
-        { status: 400 },
-      );
-    }
-    scheduledDate = new Date(scheduledAt);
-    if (
-      Number.isNaN(scheduledDate.getTime()) ||
-      scheduledDate.getTime() <= Date.now()
-    ) {
-      return NextResponse.json(
-        { error: "เวลาที่ตั้งไว้ต้องเป็นเวลาในอนาคต" },
-        { status: 400 },
-      );
-    }
-    if (scheduledDate.getTime() > Date.now() + maxScheduleOffsetMs) {
-      return NextResponse.json(
-        { error: "ตั้งเวลาส่งล่วงหน้าได้ไม่เกิน 30 วัน" },
-        { status: 400 },
-      );
-    }
+  if (saveDraft !== undefined && typeof saveDraft !== "boolean") {
+    return NextResponse.json(
+      { error: "รูปแบบการบันทึกอีเมลไม่ถูกต้อง" },
+      { status: 400 },
+    );
   }
 
+  if (
+    typeof image === "string" &&
+    image.length > maxInlineImageDataLength
+  ) {
+    return NextResponse.json(
+      { error: "รูปภาพมีขนาดใหญ่เกินไป กรุณาเลือกรูปที่เล็กลง" },
+      { status: 413 },
+    );
+  }
+
+  const imageData =
+    typeof image === "string"
+      ? /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(image)?.[1]
+      : undefined;
+  if (image !== undefined && !imageData) {
+    return NextResponse.json(
+      { error: "รูปภาพไม่ถูกต้อง กรุณาเลือกรูปใหม่อีกครั้ง" },
+      { status: 400 },
+    );
+  }
+  const imageBuffer = imageData ? Buffer.from(imageData, "base64") : null;
+  if (
+    imageBuffer &&
+    (imageBuffer.byteLength > maxInlineImageBytes || imageBuffer.byteLength === 0)
+  ) {
+    return NextResponse.json(
+      { error: "รูปภาพมีขนาดใหญ่เกินไป กรุณาเลือกรูปที่เล็กลง" },
+      { status: 413 },
+    );
+  }
   const html = buildLoveEmailHtml({
     recipientName,
     message,
     signature,
     theme,
+    imageSrc: imageData ? "cid:letter-image" : undefined,
   });
-
-  if (scheduledDate) {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
-    if (!apiKey || !from) {
-      console.error(
-        "Email delivery is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.",
-      );
-      return NextResponse.json(
-        { error: "ระบบส่งอีเมลยังตั้งค่าไม่ครบ กรุณาติดต่อผู้ดูแลระบบ" },
-        { status: 503 },
-      );
-    }
-
-    let response: Response;
-    try {
-      response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: [to.trim()],
-          subject: subject.trim(),
-          html,
-          scheduled_at: scheduledDate.toISOString(),
-        }),
-      });
-    } catch (error) {
-      console.error("Unable to reach the email provider.", error);
-      return NextResponse.json(
-        { error: "เชื่อมต่อระบบส่งอีเมลไม่ได้ กรุณาลองอีกครั้ง" },
-        { status: 502 },
-      );
-    }
-
-    const result: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      const providerMessage =
-        typeof result === "object" &&
-        result !== null &&
-        "message" in result &&
-        typeof result.message === "string"
-          ? result.message
-          : "ผู้ให้บริการอีเมลไม่สามารถส่งข้อความนี้ได้";
-      console.error("Email provider rejected a message.", {
-        status: response.status,
-        message: providerMessage,
-      });
-      return NextResponse.json(
-        { error: providerMessage },
-        { status: response.status >= 400 && response.status < 500 ? 400 : 502 },
-      );
-    }
-
-    const messageId =
-      typeof result === "object" &&
-      result !== null &&
-      "id" in result &&
-      typeof result.id === "string"
-        ? result.id
-        : undefined;
-    return NextResponse.json(
-      { id: messageId, scheduledAt: scheduledDate.toISOString() },
-      { status: 200 },
-    );
-  }
 
   const token = await getToken({
     req: request,
@@ -250,30 +198,66 @@ export async function POST(request: NextRequest) {
     .toString("base64")
     .replace(/.{1,76}/g, "$&\r\n")
     .trimEnd();
-  const mimeMessage = [
+  const messageHeaders = [
     `From: ${token.email}`,
     `To: ${to.trim()}`,
     `Subject: =?UTF-8?B?${encodedSubject}?=`,
     "MIME-Version: 1.0",
-    "Content-Type: text/html; charset=UTF-8",
-    "Content-Transfer-Encoding: base64",
-    "",
-    encodedHtml,
-  ].join("\r\n");
+  ];
+  let mimeMessage: string;
+  if (imageData) {
+    const boundary = `dearly-${randomUUID()}`;
+    const encodedImage = imageData.replace(/.{1,76}/g, "$&\r\n").trimEnd();
+    mimeMessage = [
+      ...messageHeaders,
+      `Content-Type: multipart/related; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodedHtml,
+      `--${boundary}`,
+      'Content-Type: image/jpeg; name="dearly-photo.jpg"',
+      "Content-Transfer-Encoding: base64",
+      "Content-ID: <letter-image>",
+      'Content-Disposition: inline; filename="dearly-photo.jpg"',
+      "",
+      encodedImage,
+      `--${boundary}--`,
+    ].join("\r\n");
+  } else {
+    mimeMessage = [
+      ...messageHeaders,
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodedHtml,
+    ].join("\r\n");
+  }
 
+  const isDraft = saveDraft === true;
   let gmailResponse: Response;
   try {
     gmailResponse = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      isDraft
+        ? "https://gmail.googleapis.com/gmail/v1/users/me/drafts"
+        : "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          raw: Buffer.from(mimeMessage, "utf8").toString("base64url"),
-        }),
+        body: JSON.stringify(
+          isDraft
+            ? {
+                message: {
+                  raw: Buffer.from(mimeMessage, "utf8").toString("base64url"),
+                },
+              }
+            : { raw: Buffer.from(mimeMessage, "utf8").toString("base64url") },
+        ),
       },
     );
   } catch (error) {
@@ -296,7 +280,11 @@ export async function POST(request: NextRequest) {
     }
     if (gmailResponse.status === 403) {
       return NextResponse.json(
-        { error: "บัญชี Google ยังไม่ได้รับสิทธิ์ส่งอีเมล กรุณาเชื่อมต่อ Google ใหม่" },
+        {
+          error: isDraft
+            ? "บัญชี Google ยังไม่ได้รับสิทธิ์บันทึกร่าง กรุณาออกจากระบบแล้วเชื่อมต่อ Google ใหม่"
+            : "บัญชี Google ยังไม่ได้รับสิทธิ์ส่งอีเมล กรุณาเชื่อมต่อ Google ใหม่",
+        },
         { status: 403 },
       );
     }
@@ -306,7 +294,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result: unknown = await gmailResponse.json().catch(() => null);
+  let result: unknown;
+  try {
+    result = await gmailResponse.json();
+  } catch (error) {
+    console.error("Gmail API returned an invalid response.", error);
+    return NextResponse.json(
+      { error: "Gmail ตอบกลับไม่ถูกต้อง กรุณาลองอีกครั้ง" },
+      { status: 502 },
+    );
+  }
   const messageId =
     typeof result === "object" &&
     result !== null &&
@@ -314,5 +311,22 @@ export async function POST(request: NextRequest) {
     typeof result.id === "string"
       ? result.id
       : undefined;
-  return NextResponse.json({ id: messageId }, { status: 200 });
+  if (!messageId) {
+    console.error("Gmail API response did not include a message ID.", {
+      isDraft,
+    });
+    return NextResponse.json(
+      { error: isDraft ? "Gmail บันทึกร่างไม่สำเร็จ กรุณาลองอีกครั้ง" : "Gmail ส่งอีเมลไม่สำเร็จ กรุณาลองอีกครั้ง" },
+      { status: 502 },
+    );
+  }
+  return NextResponse.json(
+    isDraft
+      ? {
+          draftId: messageId,
+          gmailUrl: "https://mail.google.com/mail/u/0/#drafts",
+        }
+      : { id: messageId },
+    { status: 200 },
+  );
 }

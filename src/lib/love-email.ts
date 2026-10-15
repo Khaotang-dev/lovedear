@@ -1,10 +1,12 @@
 export type LoveEmailTheme = "rose" | "midnight" | "sunshine";
+export type LoveEmailImageLayout = "landscape" | "square" | "portrait";
 
 export type LoveEmailContent = {
   recipientName: string;
   message: string;
   signature: string;
   theme: LoveEmailTheme;
+  imageSrc?: string;
 };
 
 const palettes: Record<
@@ -52,12 +54,16 @@ export function buildLoveEmailHtml({
   message,
   signature,
   theme,
+  imageSrc,
 }: LoveEmailContent) {
   const palette = palettes[theme] ?? palettes.rose;
   const safeName = escapeHtml(recipientName.trim());
   const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br>");
   const safeSignature = escapeHtml(signature).replace(/\r?\n/g, "<br>");
   const greeting = safeName ? `ถึง ${safeName} คนพิเศษของเรา` : "ถึงคนพิเศษของเรา";
+  const image = imageSrc
+    ? `<tr><td align="center" style="padding:8px 0 24px;"><img src="${escapeHtml(imageSrc)}" alt="รูปภาพที่แนบมากับจดหมาย" width="460" style="display:block;width:100%;max-width:460px;height:auto;border:0;border-radius:12px;"></td></tr>`
+    : "";
 
   return `<!doctype html>
 <html lang="th">
@@ -94,6 +100,7 @@ export function buildLoveEmailHtml({
             <tr><td align="center" style="padding:20px 0 24px;">
               <table role="presentation" cellpadding="0" cellspacing="0" width="46" style="border-collapse:collapse;"><tr><td style="border-top:1px solid ${palette.accent};font-size:0;line-height:0;">&nbsp;</td></tr></table>
             </td></tr>
+            ${image}
             <tr><td style="font-size:16px;line-height:1.95;color:${palette.ink};white-space:normal;">${safeMessage}</td></tr>
             <tr><td align="center" style="padding-top:34px;">
               <span style="display:inline-block;background:${palette.soft};border-radius:50px;padding:11px 21px;font-family:Arial,sans-serif;font-size:12px;letter-spacing:1px;color:${palette.accent};">คิดถึงนะ ♡</span>
@@ -101,7 +108,7 @@ export function buildLoveEmailHtml({
             <tr><td align="center" style="padding-top:35px;font-size:17px;line-height:1.7;color:${palette.ink};">${safeSignature || "รักเสมอ ♡"}</td></tr>
           </table>
         </td></tr>
-        <tr><td align="center" style="padding:24px 0 0;font-family:Arial,sans-serif;font-size:11px;letter-spacing:1px;color:${palette.accent};opacity:.8;">ส่งด้วยความรัก จาก dearly ♡</td></tr>
+        <tr><td align="center" style="padding:24px 0 0;font-family:Arial,sans-serif;font-size:11px;letter-spacing:1px;color:${palette.accent};opacity:.8;">Made with ❤️ By Khaotang</td></tr>
       </table>
     </td></tr>
   </table>

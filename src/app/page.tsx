@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { buildLoveEmailHtml, type LoveEmailTheme } from "@/lib/love-email";
+import {
+  buildLoveEmailHtml,
+  type LoveEmailImageLayout,
+  type LoveEmailTheme,
+} from "@/lib/love-email";
 
-type SendMode = "now" | "scheduled";
+type SendMode = "now" | "draft";
 
 const themes: {
   id: LoveEmailTheme;
@@ -34,20 +38,229 @@ const themes: {
 ];
 
 const initialMessage =
-  "แค่มีเธออยู่ข้าง ๆ วันธรรมดาของเราก็กลายเป็นวันที่พิเศษเสมอ\n\nขอบคุณที่เป็นรอยยิ้ม เป็นกำลังใจ และเป็นบ้านที่อบอุ่นที่สุดของเรานะ รักเธอมากกว่าที่คำพูดจะบอกได้เลย";
+  "แค่มีเธออยู่ข้าง ๆ วันธรรมดาของเราก็กลายเป็นวันที่พิเศษเสมอ\n\nขอบคุณที่เป็นรอยยิ้ม เป็นกำลังใจ และเป็นบ้านที่อบอุ่นที่สุดของเรานะ รักเธอมากกว่าที่คำพูดจะบอกได้เลย \n\nแค่มีเธออยู่ข้าง ๆ เราก็เปลี่ยนไปเยอะมากๆ เลย ได้เรียนรู้หลายๆอย่าง ขอบคุณที่เป็นรอยยิ้ม เป็นกำลังใจ และเป็นบ้านที่อบอุ่นที่สุดของเรานะ รักเธอมากกว่าที่คำพูดจะบอกได้เลย";
 
-const maxScheduleOffsetMs = 30 * 24 * 60 * 60 * 1000;
+const maxImageFileSize = 10 * 1024 * 1024;
+const maxProcessedPhotoDataLength = 1_333_359;
+const maxPhotoCount = 4;
 
-function getMinScheduleValue() {
-  const date = new Date(Date.now() + 60_000);
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
+const imageLayouts: {
+  id: LoveEmailImageLayout;
+  label: string;
+  description: string;
+  ratio: number;
+}[] = [
+  {
+    id: "landscape",
+    label: "ภาพกว้าง",
+    description: "เหมาะกับภาพวิว",
+    ratio: 3 / 2,
+  },
+  {
+    id: "square",
+    label: "จัตุรัส",
+    description: "พอดี ดูสมดุล",
+    ratio: 1,
+  },
+  {
+    id: "portrait",
+    label: "แนวตั้ง",
+    description: "เน้นภาพบุคคล",
+    ratio: 4 / 5,
+  },
+];
+
+type PhotoTemplateId =
+  | "single"
+  | "duo"
+  | "large-two-small"
+  | "strip-three"
+  | "large-three-small"
+  | "grid-four";
+
+type PhotoTemplate = {
+  id: PhotoTemplateId;
+  label: string;
+  description: string;
+  photoCount: number;
+  width: number;
+  height: number;
+  cells: { x: number; y: number; width: number; height: number }[];
+};
+
+const photoTemplates: PhotoTemplate[] = [
+  {
+    id: "single",
+    label: "ภาพเดี่ยว",
+    description: "ใช้ 1 รูป · ครอปพร้อมกรอบ",
+    photoCount: 1,
+    width: 1200,
+    height: 800,
+    cells: [{ x: 0, y: 0, width: 1, height: 1 }],
+  },
+  {
+    id: "duo",
+    label: "2 รูปเคียงกัน",
+    description: "ใช้ 2 รูป",
+    photoCount: 2,
+    width: 1200,
+    height: 800,
+    cells: [
+      { x: 0, y: 0, width: 0.5, height: 1 },
+      { x: 0.5, y: 0, width: 0.5, height: 1 },
+    ],
+  },
+  {
+    id: "large-two-small",
+    label: "1 ใหญ่ + 2 เล็ก",
+    description: "ใช้ 3 รูป",
+    photoCount: 3,
+    width: 1200,
+    height: 800,
+    cells: [
+      { x: 0, y: 0, width: 0.62, height: 1 },
+      { x: 0.62, y: 0, width: 0.38, height: 0.5 },
+      { x: 0.62, y: 0.5, width: 0.38, height: 0.5 },
+    ],
+  },
+  {
+    id: "strip-three",
+    label: "Photo booth",
+    description: "แถบ 3 รูป · ใช้ 3 รูป",
+    photoCount: 3,
+    width: 600,
+    height: 1800,
+    cells: [
+      { x: 0, y: 0, width: 1, height: 1 / 3 },
+      { x: 0, y: 1 / 3, width: 1, height: 1 / 3 },
+      { x: 0, y: 2 / 3, width: 1, height: 1 / 3 },
+    ],
+  },
+  {
+    id: "large-three-small",
+    label: "1 ใหญ่ + 3 เล็ก",
+    description: "ใช้ 4 รูป",
+    photoCount: 4,
+    width: 1200,
+    height: 900,
+    cells: [
+      { x: 0, y: 0, width: 1, height: 0.66 },
+      { x: 0, y: 0.66, width: 1 / 3, height: 0.34 },
+      { x: 1 / 3, y: 0.66, width: 1 / 3, height: 0.34 },
+      { x: 2 / 3, y: 0.66, width: 1 / 3, height: 0.34 },
+    ],
+  },
+  {
+    id: "grid-four",
+    label: "ตาราง 2 × 2",
+    description: "ใช้ 4 รูป",
+    photoCount: 4,
+    width: 1000,
+    height: 1000,
+    cells: [
+      { x: 0, y: 0, width: 0.5, height: 0.5 },
+      { x: 0.5, y: 0, width: 0.5, height: 0.5 },
+      { x: 0, y: 0.5, width: 0.5, height: 0.5 },
+      { x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+    ],
+  },
+];
+
+async function cropImage(
+  file: File,
+  layout: LoveEmailImageLayout,
+  horizontalPosition: number,
+  verticalPosition: number,
+) {
+  const bitmap = await createImageBitmap(file);
+  const ratio = imageLayouts.find((item) => item.id === layout)?.ratio ?? 1;
+  const cropWidth = Math.min(bitmap.width, bitmap.height * ratio);
+  const cropHeight = cropWidth / ratio;
+  const sourceX = (bitmap.width - cropWidth) * (horizontalPosition / 100);
+  const sourceY = (bitmap.height - cropHeight) * (verticalPosition / 100);
+  const outputWidth = Math.max(1, Math.round(Math.min(1200, cropWidth)));
+  const outputHeight = Math.max(1, Math.round(outputWidth / ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("เตรียมรูปภาพไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+  }
+
+  context.drawImage(
+    bitmap,
+    sourceX,
+    sourceY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight,
+  );
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
-function getMaxScheduleValue() {
-  const date = new Date(Date.now() + maxScheduleOffsetMs);
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
+async function composePhotoTemplate(
+  files: File[],
+  template: PhotoTemplate,
+) {
+  if (files.length !== template.photoCount) {
+    throw new Error("จำนวนรูปไม่ตรงกับเทมเพลตที่เลือก");
+  }
+
+  const bitmaps: ImageBitmap[] = [];
+  try {
+    for (const file of files) {
+      bitmaps.push(await createImageBitmap(file));
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = template.width;
+    canvas.height = template.height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("เตรียมรูปภาพไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    }
+
+    context.fillStyle = "#fffdfb";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const gutter = Math.max(8, Math.round(Math.min(canvas.width, canvas.height) * 0.012));
+
+    template.cells.forEach((cell, index) => {
+      const bitmap = bitmaps[index];
+      if (!bitmap) return;
+
+      const left = Math.round(cell.x * canvas.width) + gutter;
+      const top = Math.round(cell.y * canvas.height) + gutter;
+      const width = Math.round(cell.width * canvas.width) - gutter * 2;
+      const height = Math.round(cell.height * canvas.height) - gutter * 2;
+      const scale = Math.max(width / bitmap.width, height / bitmap.height);
+      const sourceWidth = width / scale;
+      const sourceHeight = height / scale;
+      const sourceX = (bitmap.width - sourceWidth) / 2;
+      const sourceY = (bitmap.height - sourceHeight) / 2;
+
+      context.drawImage(
+        bitmap,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        left,
+        top,
+        width,
+        height,
+      );
+    });
+
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } finally {
+    bitmaps.forEach((bitmap) => bitmap.close());
+  }
 }
 
 export default function Home() {
@@ -58,13 +271,25 @@ export default function Home() {
   const [message, setMessage] = useState(initialMessage);
   const [signature, setSignature] = useState("รักเสมอ, คนของเธอ");
   const [theme, setTheme] = useState<LoveEmailTheme>("rose");
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageLayout, setImageLayout] =
+    useState<LoveEmailImageLayout>("landscape");
+  const [photoTemplate, setPhotoTemplate] = useState<PhotoTemplateId | null>(
+    null,
+  );
+  const [imagePosition, setImagePosition] = useState({ x: 50, y: 50 });
+  const [isCropping, setIsCropping] = useState(false);
   const [sendMode, setSendMode] = useState<SendMode>("now");
-  const [scheduledAt, setScheduledAt] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
     text: string;
+    actionHref?: string;
+    actionLabel?: string;
   } | null>(null);
+  const imageFilesRef = useRef<File[]>([]);
+  const cropRequestRef = useRef(0);
 
   const emailHtml = useMemo(
     () =>
@@ -73,44 +298,184 @@ export default function Home() {
         message,
         signature,
         theme,
+        imageSrc: imageData ?? undefined,
       }),
-    [recipientName, message, signature, theme],
+    [recipientName, message, signature, theme, imageData],
   );
+  const selectedPhotoTemplate = photoTemplates.find(
+    (template) => template.id === photoTemplate,
+  );
+
+  async function updatePhotoPreview(
+    files: File[],
+    templateId: PhotoTemplateId,
+    layout = imageLayout,
+    position = imagePosition,
+  ) {
+    const requestId = ++cropRequestRef.current;
+    setIsCropping(true);
+    try {
+      const template = photoTemplates.find((item) => item.id === templateId);
+      if (!template) {
+        throw new Error("ไม่พบเทมเพลตรูปภาพที่เลือก");
+      }
+      if (files.length !== template.photoCount) {
+        throw new Error(`เทมเพลตนี้ต้องใช้รูป ${template.photoCount} รูป`);
+      }
+      let image: string;
+      if (templateId === "single") {
+        const file = files[0];
+        if (!file) throw new Error("เลือกรูปภาพก่อนจัดวาง");
+        image = await cropImage(file, layout, position.x, position.y);
+      } else {
+        image = await composePhotoTemplate(files, template);
+      }
+      if (requestId !== cropRequestRef.current) return;
+      if (image.length > maxProcessedPhotoDataLength) {
+        throw new Error(
+          "รูปที่จัดวางแล้วยังมีขนาดใหญ่เกินไป ลองเลือกรูปที่มีขนาดเล็กลงนะ",
+        );
+      }
+      setImageData(image);
+      setNotice(null);
+    } catch (error) {
+      if (requestId !== cropRequestRef.current) return;
+      setNotice({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "เปิดรูปภาพไม่สำเร็จ กรุณาลองเลือกรูปอื่นนะ",
+      });
+    } finally {
+      if (requestId === cropRequestRef.current) setIsCropping(false);
+    }
+  }
+
+  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (selectedFiles.length === 0) return;
+    if (!photoTemplate) {
+      setNotice({ type: "error", text: "เลือกเทมเพลตก่อนอัปโหลดรูปนะ" });
+      return;
+    }
+
+    const files = [...imageFilesRef.current, ...selectedFiles];
+    const requiredPhotoCount =
+      photoTemplates.find((template) => template.id === photoTemplate)
+        ?.photoCount ?? 0;
+    if (files.length > requiredPhotoCount) {
+      setNotice({
+        type: "error",
+        text: `เทมเพลตนี้ใช้ ${requiredPhotoCount} รูป กรุณาเลือกรูปเพิ่มไม่เกินจำนวนนี้นะ`,
+      });
+      return;
+    }
+    if (
+      selectedFiles.some(
+        (file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type),
+      )
+    ) {
+      setNotice({ type: "error", text: "เลือกรูป JPG, PNG หรือ WebP นะ" });
+      return;
+    }
+    if (selectedFiles.some((file) => file.size > maxImageFileSize)) {
+      setNotice({ type: "error", text: "รูปต้นฉบับต้องมีขนาดไม่เกิน 10 MB นะ" });
+      return;
+    }
+
+    imageFilesRef.current = files;
+    setImageFiles(files);
+    setImageData(null);
+    setNotice(null);
+    setImagePosition({ x: 50, y: 50 });
+    if (files.length === requiredPhotoCount) {
+      await updatePhotoPreview(files, photoTemplate, imageLayout, { x: 50, y: 50 });
+    }
+  }
+
+  function handlePhotoTemplateChange(template: PhotoTemplateId) {
+    const photoCount = photoTemplates.find((item) => item.id === template)?.photoCount;
+    if (photoCount === undefined) {
+      setNotice({ type: "error", text: "ไม่พบเทมเพลตรูปภาพที่เลือก" });
+      return;
+    }
+    setPhotoTemplate(template);
+    if (imageFiles.length === photoCount) {
+      setNotice(null);
+      setImageData(null);
+      if (template === "single") {
+        setImagePosition({ x: 50, y: 50 });
+        void updatePhotoPreview(imageFiles, template, imageLayout, { x: 50, y: 50 });
+      } else {
+        void updatePhotoPreview(imageFiles, template);
+      }
+      return;
+    }
+
+    cropRequestRef.current += 1;
+    setImageData(null);
+    setIsCropping(false);
+    if (imageFiles.length > 0) {
+      setImageFiles([]);
+      imageFilesRef.current = [];
+      setNotice({
+        type: "success",
+        text: `เทมเพลตนี้ใช้ ${photoCount} รูป กรุณาอัปโหลดรูปใหม่ตามจำนวนนี้นะ`,
+      });
+    } else {
+      setNotice(null);
+    }
+    setImagePosition({ x: 50, y: 50 });
+  }
+
+  function handleImageLayoutChange(layout: LoveEmailImageLayout) {
+    setImageLayout(layout);
+    setImagePosition({ x: 50, y: 50 });
+    if (imageFiles.length === 1 && photoTemplate === "single") {
+      void updatePhotoPreview(imageFiles, "single", layout, { x: 50, y: 50 });
+    }
+  }
+
+  function handleImagePositionChange(axis: "x" | "y", value: number) {
+    const nextPosition = { ...imagePosition, [axis]: value };
+    setImagePosition(nextPosition);
+    if (imageFiles.length === 1 && photoTemplate === "single") {
+      void updatePhotoPreview(imageFiles, "single", imageLayout, nextPosition);
+    }
+  }
+
+  function removeImage(index: number) {
+    const files = imageFilesRef.current.filter((_, fileIndex) => fileIndex !== index);
+    imageFilesRef.current = files;
+    setImageFiles(files);
+    cropRequestRef.current += 1;
+    setImageData(null);
+    setIsCropping(false);
+    setNotice(null);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice(null);
 
-    let scheduledAtIso: string | undefined;
-    if (sendMode === "scheduled") {
-      if (!scheduledAt) {
-        setNotice({ type: "error", text: "เลือกวันและเวลาที่ต้องการส่งก่อนนะ" });
-        return;
-      }
-
-      const scheduledDate = new Date(scheduledAt);
-      if (
-        Number.isNaN(scheduledDate.getTime()) ||
-        scheduledDate.getTime() <= Date.now()
-      ) {
-        setNotice({
-          type: "error",
-          text: "เวลาที่ตั้งไว้ต้องเป็นเวลาในอนาคต",
-        });
-        return;
-      }
-      if (scheduledDate.getTime() > Date.now() + maxScheduleOffsetMs) {
-        setNotice({
-          type: "error",
-          text: "ตั้งเวลาส่งล่วงหน้าได้ไม่เกิน 30 วัน",
-        });
-        return;
-      }
-      scheduledAtIso = scheduledDate.toISOString();
-    } else if (!session?.user?.email) {
+    if (
+      selectedPhotoTemplate &&
+      imageFiles.length > 0 &&
+      (imageFiles.length !== selectedPhotoTemplate.photoCount || !imageData)
+    ) {
       setNotice({
         type: "error",
-        text: "เข้าสู่ระบบ Google ก่อนส่งจดหมายผ่าน Gmail นะ",
+        text: `เทมเพลตที่เลือกต้องใช้รูป ${selectedPhotoTemplate.photoCount} รูป กรุณาอัปโหลดให้ครบก่อนส่งนะ`,
+      });
+      return;
+    }
+
+    if (!session?.user?.email) {
+      setNotice({
+        type: "error",
+        text: "เข้าสู่ระบบ Google ก่อนส่งหรือบันทึกร่างผ่าน Gmail นะ",
       });
       return;
     }
@@ -127,20 +492,30 @@ export default function Home() {
           message,
           signature,
           theme,
-          ...(scheduledAtIso ? { scheduledAt: scheduledAtIso } : {}),
+          saveDraft: sendMode === "draft",
+          ...(imageData ? { image: imageData } : {}),
         }),
       });
-      const result: { error?: string; id?: string; scheduledAt?: string } =
+      const result: { error?: string; id?: string; draftId?: string; gmailUrl?: string } =
         await response.json();
 
       if (!response.ok) {
         throw new Error(result.error ?? "ส่งอีเมลไม่สำเร็จ ลองใหม่อีกครั้งนะ");
       }
 
-      const confirmation = scheduledAtIso
-        ? `ตั้งเวลาส่งให้แล้ว 💌 (${new Date(scheduledAtIso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })})`
-        : "ส่งอีเมลบอกรักเรียบร้อยแล้ว 💌";
-      setNotice({ type: "success", text: confirmation });
+      if (sendMode === "draft") {
+        setNotice({
+          type: "success",
+          text: "บันทึกร่างไว้ใน Gmail แล้ว เปิดร่าง จากนั้นกดลูกศรข้างปุ่มส่งและเลือก “ตั้งเวลาส่ง”",
+          actionHref: result.gmailUrl ?? "https://mail.google.com/mail/u/0/#drafts",
+          actionLabel: "เปิด Gmail Drafts",
+        });
+      } else {
+        setNotice({
+          type: "success",
+          text: "ส่งอีเมลบอกรักเรียบร้อยแล้ว 💌",
+        });
+      }
     } catch (error) {
       setNotice({
         type: "error",
@@ -249,7 +624,7 @@ export default function Home() {
               id="recipient-name"
               type="text"
               maxLength={80}
-              placeholder="ที่รัก, คนเก่ง..."
+              placeholder="รีมายด์คนเก่ง"
               value={recipientName}
               onChange={(event) => setRecipientName(event.target.value)}
             />
@@ -293,6 +668,172 @@ export default function Home() {
               onChange={(event) => setSignature(event.target.value)}
             />
           </div>
+
+          <div className="divider" />
+
+          <fieldset className="image-picker">
+            <legend className="field-label">เพิ่มรูปถ่ายในจดหมาย</legend>
+            <p className="image-picker-hint">
+              เลือกเทมเพลตก่อน แล้วอัปโหลดรูปให้ครบตามจำนวนช่อง (สูงสุด {maxPhotoCount} รูป)
+            </p>
+            <div className="photo-template-options" aria-label="เลือกเทมเพลตรูปถ่าย">
+              {photoTemplates.map((template) => (
+                <button
+                  aria-pressed={photoTemplate === template.id}
+                  className={`photo-template-option ${photoTemplate === template.id ? "is-selected" : ""}`}
+                  key={template.id}
+                  onClick={() => handlePhotoTemplateChange(template.id)}
+                  type="button"
+                >
+                  <span
+                    className={`photo-template-swatch ${template.id}`}
+                    aria-hidden="true"
+                  >
+                    {Array.from({ length: template.photoCount }, (_, index) => (
+                      <i key={index} />
+                    ))}
+                  </span>
+                  <strong>{template.label}</strong>
+                  <small>{template.description}</small>
+                </button>
+              ))}
+            </div>
+
+            {!photoTemplate ? (
+              <p className="photo-template-hint">
+                เลือกเทมเพลตเพื่อเริ่มเพิ่มรูปภาพ
+              </p>
+            ) : (
+              <>
+                <label
+                  className={`image-upload ${imageFiles.length >= (selectedPhotoTemplate?.photoCount ?? 0) ? "is-disabled" : ""}`}
+                  htmlFor="letter-image"
+                >
+                  <span className="image-upload-icon" aria-hidden="true">＋</span>
+                  <span>
+                    <strong>
+                      {imageFiles.length === selectedPhotoTemplate?.photoCount
+                        ? "เลือกรูปครบแล้ว"
+                        : imageFiles.length
+                          ? "เพิ่มรูปภาพ"
+                          : `เลือกรูปภาพ ${selectedPhotoTemplate?.photoCount} รูป`}
+                    </strong>
+                    <small>
+                      JPG, PNG หรือ WebP · ไม่เกิน 10 MB ต่อรูป
+                    </small>
+                  </span>
+                  <input
+                    id="letter-image"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => void handleImageChange(event)}
+                    disabled={imageFiles.length >= (selectedPhotoTemplate?.photoCount ?? 0)}
+                    multiple
+                    type="file"
+                  />
+                </label>
+
+                {imageFiles.length > 0 && (
+                  <div className="uploaded-photo-list">
+                    {imageFiles.map((file, index) => (
+                      <div className="image-file-row" key={`${file.name}-${index}`}>
+                        <span title={file.name}>
+                          รูปที่ {index + 1}: {file.name}
+                        </span>
+                        <button
+                          aria-label={`นำรูปที่ ${index + 1} ออก`}
+                          onClick={() => removeImage(index)}
+                          type="button"
+                        >
+                          นำออก
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {imageFiles.length < (selectedPhotoTemplate?.photoCount ?? 0) && (
+                  <p className="photo-template-hint">
+                    อัปโหลดเพิ่มอีก{" "}
+                    {(selectedPhotoTemplate?.photoCount ?? 0) - imageFiles.length}{" "}
+                    รูปเพื่อแสดงตัวอย่าง
+                  </p>
+                )}
+
+                {isCropping && (
+                  <p className="photo-template-hint" role="status">
+                    กำลังจัดวางรูปภาพ...
+                  </p>
+                )}
+
+                {imageData && (
+                  <div className="image-editor">
+                    <div
+                      className={`image-crop-preview ${photoTemplate === "single" ? imageLayout : photoTemplate}`}
+                    >
+                      {/* This image mirrors the composed image embedded in the email. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageData}
+                        alt={`ตัวอย่างเลย์เอาต์รูปถ่าย ${imageFiles.length} รูป`}
+                      />
+                    </div>
+
+                    {photoTemplate === "single" && (
+                      <>
+                        <div className="image-layout-options" aria-label="เลือกรูปแบบกรอบ">
+                          {imageLayouts.map((layout) => (
+                            <button
+                              aria-pressed={imageLayout === layout.id}
+                              className={`image-layout-option ${imageLayout === layout.id ? "is-selected" : ""}`}
+                              key={layout.id}
+                              onClick={() => handleImageLayoutChange(layout.id)}
+                              type="button"
+                            >
+                              <span
+                                className={`image-layout-icon ${layout.id}`}
+                                aria-hidden="true"
+                              />
+                              <strong>{layout.label}</strong>
+                              <small>{layout.description}</small>
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="crop-controls">
+                          <label htmlFor="crop-horizontal">
+                            <span>เลื่อนภาพซ้าย–ขวา</span>
+                            <input
+                              id="crop-horizontal"
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={imagePosition.x}
+                              onChange={(event) =>
+                                handleImagePositionChange("x", Number(event.target.value))
+                              }
+                            />
+                          </label>
+                          <label htmlFor="crop-vertical">
+                            <span>เลื่อนภาพขึ้น–ลง</span>
+                            <input
+                              id="crop-vertical"
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={imagePosition.y}
+                              onChange={(event) =>
+                                handleImagePositionChange("y", Number(event.target.value))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </fieldset>
 
           <div className="divider" />
 
@@ -349,42 +890,29 @@ export default function Home() {
                 </span>
               </label>
               <label
-                className={`send-mode ${sendMode === "scheduled" ? "is-active" : ""}`}
+                className={`send-mode ${sendMode === "draft" ? "is-active" : ""}`}
               >
                 <input
                   type="radio"
                   name="send-mode"
-                  value="scheduled"
-                  checked={sendMode === "scheduled"}
-                  onChange={() => setSendMode("scheduled")}
+                  value="draft"
+                  checked={sendMode === "draft"}
+                  onChange={() => setSendMode("draft")}
                 />
                 <span className="radio-mark" />
                 <span>
-                  <strong>ตั้งเวลาส่ง</strong>
-                  <small>เซอร์ไพรส์ในเวลาที่ใช่</small>
+                  <strong>บันทึกร่างเพื่อตั้งเวลาส่ง</strong>
+                  <small>บันทึกร่างใน Gmail แล้วเลือกเวลาส่งใน Gmail</small>
                 </span>
                 <span className="mode-emoji" aria-hidden="true">
                   🕰️
                 </span>
               </label>
             </div>
-            {sendMode === "scheduled" && (
-              <div className="schedule-field">
-                <label className="field-label" htmlFor="schedule-time">
-                  วันและเวลาที่ต้องการส่ง
-                </label>
-                <input
-                  id="schedule-time"
-                  type="datetime-local"
-                  min={getMinScheduleValue()}
-                  max={getMaxScheduleValue()}
-                  value={scheduledAt}
-                  onChange={(event) => setScheduledAt(event.target.value)}
-                  required
-                />
-                <p className="schedule-hint">
-                  เลือกเวลาในเขตเวลาของคุณ (ตั้งล่วงหน้าได้ไม่เกิน 30 วัน)
-                </p>
+            {sendMode === "draft" && (
+              <div className="schedule-hint">
+                Gmail API ตั้งเวลาส่งแทนคุณไม่ได้ หลังบันทึกร่างแล้วเปิด Gmail
+                กดลูกศรข้างปุ่ม “ส่ง” และเลือก “ตั้งเวลาส่ง”
               </div>
             )}
           </fieldset>
@@ -397,20 +925,48 @@ export default function Home() {
               <span aria-hidden="true">
                 {notice.type === "success" ? "♡" : "!"}
               </span>
-              {notice.text}
+              <span className="notice-copy">
+                {notice.text}
+                {notice.actionHref && notice.actionLabel && (
+                  <a
+                    className="notice-action"
+                    href={notice.actionHref}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {notice.actionLabel}
+                  </a>
+                )}
+              </span>
             </div>
           )}
 
-          <button className="send-button" type="submit" disabled={isSending}>
-            <span>{isSending ? "กำลังส่งความรัก..." : "ส่งความรักออกไป"}</span>
+          <button
+            className="send-button"
+            type="submit"
+            disabled={isSending || isCropping}
+          >
+            <span>
+              {isCropping
+                ? "กำลังจัดรูปภาพ..."
+                : isSending
+                  ? sendMode === "draft"
+                    ? "กำลังบันทึกร่างใน Gmail..."
+                    : "กำลังส่งความรัก..."
+                  : sendMode === "draft"
+                    ? "บันทึกร่างใน Gmail"
+                    : "ส่งความรักออกไป"}
+            </span>
             <span className="send-button-icon" aria-hidden="true">
-              {isSending ? "…" : "↗"}
+              {isSending || isCropping ? "…" : "↗"}
             </span>
           </button>
           <p className="privacy-note">
             <span aria-hidden="true">♡</span>
-            {sendMode === "scheduled"
-              ? "จดหมายที่ตั้งเวลาส่งจะจัดส่งผ่าน Resend"
+            {sendMode === "draft"
+              ? session?.user?.email
+                ? `บันทึกร่างใน Gmail ของ ${session.user.email}`
+                : "เชื่อมต่อ Google เพื่อบันทึกร่างและตั้งเวลาส่งผ่าน Gmail"
               : session?.user?.email
                 ? `ส่งจาก Gmail ของ ${session.user.email}`
                 : "เชื่อมต่อ Google เพื่อส่งจดหมายจาก Gmail ของคุณ"}

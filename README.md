@@ -1,6 +1,6 @@
 # dearly.
 
-แอป Next.js สำหรับเขียนอีเมลบอกรัก ปรับธีมและดูตัวอย่างทันที ส่งจดหมายทันทีผ่าน Gmail หรือเลือกตั้งเวลาส่งผ่าน Resend
+แอป Next.js สำหรับเขียนอีเมลบอกรัก ปรับธีมและดูตัวอย่างทันที ส่งจดหมายผ่าน Gmail หรือบันทึกร่างเพื่อไปตั้งเวลาส่งใน Gmail
 
 ## เริ่มต้นใช้งาน
 
@@ -32,27 +32,21 @@ npm run dev
 
    ตั้งค่า secret แบบสุ่มที่ยาวด้วย `openssl rand -base64 32` หรือใช้ตัวสร้าง secret ที่เชื่อถือได้
 
-ผู้ใช้ต้องเชื่อมต่อบัญชี Google ในหน้า Dearly ก่อนส่งทันที จดหมายจะส่งจาก Gmail ของบัญชีนั้นโดยใช้สิทธิ์ `gmail.send` เท่านั้น เก็บ OAuth client secret และ `NEXTAUTH_SECRET` ไว้ใน environment variables ฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามใช้ชื่อตัวแปรขึ้นต้นด้วย `NEXT_PUBLIC_`
+ผู้ใช้ต้องเชื่อมต่อบัญชี Google ในหน้า Dearly ก่อนส่งหรือบันทึกร่าง จดหมายจะส่งหรือสร้างร่างใน Gmail ของบัญชีนั้น โดยใช้สิทธิ์ `gmail.send` และ `gmail.compose` ตามการทำงานที่เลือก เก็บ OAuth client secret และ `NEXTAUTH_SECRET` ไว้ใน environment variables ฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามใช้ชื่อตัวแปรขึ้นต้นด้วย `NEXT_PUBLIC_`
 
-### Resend สำหรับตั้งเวลาส่ง
+หากเคยเชื่อมต่อ Google ก่อนเพิ่มสิทธิ์ `gmail.compose` ให้ออกจากระบบแล้วเชื่อมต่อ Google ใหม่ เพื่ออนุญาตสิทธิ์สำหรับการบันทึกร่าง
 
-สร้าง API key ใน [Resend](https://resend.com/api-keys) และยืนยันโดเมนผู้ส่ง จากนั้นเพิ่มค่าต่อไปนี้ใน `.env.local`:
+### ตั้งเวลาส่งผ่าน Gmail
 
-```dotenv
-RESEND_API_KEY=re_xxxxxxxxx
-RESEND_FROM_EMAIL=Dearly <hello@your-verified-domain.com>
-```
-
-การตั้งเวลาจะส่ง `scheduled_at` ให้ Resend โดยตรง (Resend รองรับล่วงหน้าไม่เกิน 30 วัน) เวลาที่เลือกในหน้าเว็บใช้เขตเวลาของอุปกรณ์ และแปลงเป็น UTC ก่อนส่ง ผู้ให้บริการเป็นผู้จัดการคิวอีเมลตามเวลาที่กำหนด
+Gmail API ไม่มีคำสั่งตั้งเวลาส่งโดยตรง โหมด **บันทึกร่างเพื่อตั้งเวลาส่ง** จะสร้างร่างใน Gmail ให้ก่อน จากนั้นเปิด Gmail Drafts เลือกร่าง กดลูกศรข้างปุ่มส่ง และเลือก **ตั้งเวลาส่ง** แล้วเลือกวันและเวลาที่ต้องการใน Gmail
 
 ## Deploy บน Vercel
 
 1. Push โปรเจกต์ไปยัง Git repository แล้ว Import โปรเจกต์ใน Vercel โดยเลือก framework เป็น Next.js
 2. เพิ่มตัวแปร Google OAuth, `NEXTAUTH_URL` (โดเมน production) และ `NEXTAUTH_SECRET` ใน **Project Settings → Environment Variables** และเพิ่ม production callback URI ใน Google Cloud Console
-3. เพิ่ม `RESEND_API_KEY` และ `RESEND_FROM_EMAIL` เพื่อเปิดใช้การตั้งเวลาส่ง
-4. Deploy หรือ redeploy โปรเจกต์
+3. Deploy หรือ redeploy โปรเจกต์
 
-โปรเจกต์นี้ไม่มีฐานข้อมูล ไม่เก็บเนื้อหาอีเมลหรือรายการนัดส่งไว้เอง งานที่ตั้งเวลาจะอยู่ในระบบของ Resend
+โปรเจกต์นี้ไม่มีฐานข้อมูล รายการร่างและการตั้งเวลาส่งที่ทำผ่าน Gmail จะถูกจัดการในบัญชี Gmail ของผู้ใช้
 
 ## ความเป็นส่วนตัว
 

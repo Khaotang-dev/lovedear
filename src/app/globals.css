@@ -302,7 +302,7 @@ button {
   margin-bottom: 7px;
 }
 
-.form-section > .field-label:first-child {
+.form-section>.field-label:first-child {
   margin-bottom: 7px;
 }
 
@@ -485,11 +485,11 @@ button {
   border-radius: 50%;
 }
 
-.send-mode input:checked + .radio-mark {
+.send-mode input:checked+.radio-mark {
   border-color: var(--rose);
 }
 
-.send-mode input:checked + .radio-mark::after {
+.send-mode input:checked+.radio-mark::after {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -497,12 +497,12 @@ button {
   content: "";
 }
 
-.send-mode input:focus-visible + .radio-mark {
+.send-mode input:focus-visible+.radio-mark {
   outline: 2px solid #b95770;
   outline-offset: 3px;
 }
 
-.send-mode > span:nth-of-type(2) {
+.send-mode>span:nth-of-type(2) {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -528,7 +528,7 @@ button {
   margin-top: 14px;
 }
 
-.schedule-field > .field-label {
+.schedule-field>.field-label {
   margin-bottom: 7px;
 }
 
@@ -812,7 +812,7 @@ button {
   font-size: 16px;
 }
 
-.preview-footnote > span:last-child {
+.preview-footnote>span:last-child {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -841,14 +841,14 @@ button {
   font-size: 10px;
 }
 
-.footer > span:first-child {
+.footer>span:first-child {
   color: #6c504b;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.4px;
 }
 
-.footer > span:last-child span {
+.footer>span:last-child span {
   color: var(--rose);
 }
 
@@ -1014,7 +1014,7 @@ button {
   font-size: 24px;
 }
 
-.image-upload > span:last-of-type {
+.image-upload>span:last-of-type {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1120,7 +1120,7 @@ button {
   font-size: 11px;
 }
 
-.image-file-row > span {
+.image-file-row>span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1333,6 +1333,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -1777,6 +1778,14 @@ a:focus-visible {
   animation: preview-ornament-twinkle 1.9s ease-in-out infinite;
 }
 
+.animation-sample-bounce {
+  animation: preview-ornament-bounce 1.8s ease-in-out infinite;
+}
+
+.animation-sample-sway {
+  animation: preview-ornament-sway 2.4s ease-in-out infinite;
+}
+
 .animation-copy {
   display: flex;
   min-width: 0;
@@ -1822,6 +1831,22 @@ a:focus-visible {
   50% {
     opacity: 0.58;
     transform: scale(0.85) rotate(-10deg);
+  }
+}
+
+@keyframes preview-ornament-bounce {
+  40% {
+    transform: translateY(-6px) scale(1.08);
+  }
+
+  65% {
+    transform: translateY(0) scale(0.96);
+  }
+}
+
+@keyframes preview-ornament-sway {
+  50% {
+    transform: rotate(10deg);
   }
 }
 

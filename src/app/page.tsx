@@ -19,32 +19,45 @@ const themes: {
   description: string;
   swatch: string;
 }[] = [
-  {
-    id: "rose",
-    label: "Rose garden",
-    description: "หวานละมุน โรแมนติก",
-    swatch: "rose",
-  },
-  {
-    id: "midnight",
-    label: "Midnight",
-    description: "อบอุ่นเหมือนคืนดาวเต็มฟ้า",
-    swatch: "midnight",
-  },
-  {
-    id: "sunshine",
-    label: "Sunshine",
-    description: "สดใสเหมือนวันแรกที่เจอกัน",
-    swatch: "sunshine",
-  },
-];
+    {
+      id: "rose",
+      label: "Rose garden",
+      description: "หวานละมุน โรแมนติก",
+      swatch: "rose",
+    },
+    {
+      id: "midnight",
+      label: "Midnight",
+      description: "อบอุ่นเหมือนคืนดาวเต็มฟ้า",
+      swatch: "midnight",
+    },
+    {
+      id: "sunshine",
+      label: "Sunshine",
+      description: "สดใสเหมือนวันแรกที่เจอกัน",
+      swatch: "sunshine",
+    },
+  ];
 
 const decorationEmojis: { value: LoveEmailDecorationEmoji; label: string }[] = [
   { value: "💖", label: "หัวใจสีชมพู" },
+  { value: "💕", label: "หัวใจคู่" },
+  { value: "💗", label: "หัวใจเต้น" },
+  { value: "💘", label: "หัวใจศรรัก" },
+  { value: "💝", label: "หัวใจของขวัญ" },
   { value: "💌", label: "จดหมายรัก" },
   { value: "✨", label: "ประกายดาว" },
   { value: "🌷", label: "ดอกทิวลิป" },
+  { value: "🌸", label: "ดอกซากุระ" },
+  { value: "🌼", label: "ดอกเดซี่" },
+  { value: "🐰", label: "กระต่ายน้อย" },
+  { value: "🐱", label: "แมวน้อย" },
   { value: "🧸", label: "ตุ๊กตาหมี" },
+  { value: "🦋", label: "ผีเสื้อ" },
+  { value: "🎀", label: "โบสีชมพู" },
+  { value: "🍓", label: "สตรอว์เบอร์รี" },
+  { value: "🧁", label: "คัพเค้ก" },
+  { value: "☁️", label: "ก้อนเมฆ" },
   { value: "🌙", label: "พระจันทร์" },
 ];
 
@@ -53,11 +66,13 @@ const animationOptions: {
   label: string;
   description: string;
 }[] = [
-  { id: "none", label: "นิ่ง", description: "เรียบง่าย" },
-  { id: "float", label: "ลอยเบา ๆ", description: "นุ่มนวล" },
-  { id: "pulse", label: "เต้นเป็นจังหวะ", description: "มีชีวิตชีวา" },
-  { id: "twinkle", label: "วิบวับ", description: "ประกายละมุน" },
-];
+    { id: "none", label: "นิ่ง", description: "เรียบง่าย" },
+    { id: "float", label: "ลอยเบา ๆ", description: "นุ่มนวล" },
+    { id: "pulse", label: "เต้นเป็นจังหวะ", description: "มีชีวิตชีวา" },
+    { id: "twinkle", label: "วิบวับ", description: "ประกายละมุน" },
+    { id: "bounce", label: "เด้งดึ๋ง", description: "สดใสขี้เล่น" },
+    { id: "sway", label: "โยกเบา ๆ", description: "พลิ้วไหว" },
+  ];
 
 const initialMessage =
   "แค่มีเธออยู่ข้าง ๆ วันธรรมดาของเราก็กลายเป็นวันที่พิเศษเสมอ\n\nขอบคุณที่เป็นรอยยิ้ม เป็นกำลังใจ และเป็นบ้านที่อบอุ่นที่สุดของเรานะ รักเธอมากกว่าที่คำพูดจะบอกได้เลย \n\nแค่มีเธออยู่ข้าง ๆ เราก็เปลี่ยนไปเยอะมากๆ เลย ได้เรียนรู้หลายๆอย่าง ขอบคุณที่เป็นรอยยิ้ม เป็นกำลังใจ และเป็นบ้านที่อบอุ่นที่สุดของเรานะ รักเธอมากกว่าที่คำพูดจะบอกได้เลย";
@@ -72,25 +87,25 @@ const imageLayouts: {
   description: string;
   ratio: number;
 }[] = [
-  {
-    id: "landscape",
-    label: "ภาพกว้าง",
-    description: "เหมาะกับภาพวิว",
-    ratio: 3 / 2,
-  },
-  {
-    id: "square",
-    label: "จัตุรัส",
-    description: "พอดี ดูสมดุล",
-    ratio: 1,
-  },
-  {
-    id: "portrait",
-    label: "แนวตั้ง",
-    description: "เน้นภาพบุคคล",
-    ratio: 4 / 5,
-  },
-];
+    {
+      id: "landscape",
+      label: "ภาพกว้าง",
+      description: "เหมาะกับภาพวิว",
+      ratio: 3 / 2,
+    },
+    {
+      id: "square",
+      label: "จัตุรัส",
+      description: "พอดี ดูสมดุล",
+      ratio: 1,
+    },
+    {
+      id: "portrait",
+      label: "แนวตั้ง",
+      description: "เน้นภาพบุคคล",
+      ratio: 4 / 5,
+    },
+  ];
 
 type PhotoTemplateId =
   | "single"

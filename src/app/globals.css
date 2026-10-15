@@ -1687,3 +1687,151 @@ a:focus-visible {
     font-size: 10px;
   }
 }
+
+.emoji-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emoji-option {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #eee2dc;
+  border-radius: 12px;
+  background: #fffdfb;
+  cursor: pointer;
+  font-size: 21px;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.emoji-option:hover {
+  transform: translateY(-2px);
+}
+
+.emoji-option.is-selected {
+  border-color: #d69ba5;
+  background: #fff4f4;
+  box-shadow: 0 0 0 3px rgba(185, 87, 112, 0.08);
+}
+
+.animation-label {
+  display: block;
+  margin: 17px 0 9px;
+}
+
+.animation-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.animation-option {
+  display: flex;
+  min-width: 0;
+  min-height: 55px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid #eee7e3;
+  border-radius: 11px;
+  background: #fffefd;
+  color: #65524c;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.animation-option.is-selected {
+  border-color: #d69ba5;
+  background: #fff7f7;
+  box-shadow: 0 0 0 2px rgba(185, 87, 112, 0.07);
+}
+
+.animation-sample {
+  display: grid;
+  width: 26px;
+  height: 30px;
+  flex: 0 0 26px;
+  place-items: center;
+  font-size: 19px;
+}
+
+.animation-sample-float {
+  animation: preview-ornament-float 2.6s ease-in-out infinite;
+}
+
+.animation-sample-pulse {
+  animation: preview-ornament-pulse 1.6s ease-in-out infinite;
+}
+
+.animation-sample-twinkle {
+  animation: preview-ornament-twinkle 1.9s ease-in-out infinite;
+}
+
+.animation-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.animation-copy strong {
+  font-size: 10px;
+}
+
+.animation-copy small {
+  color: #a0938d;
+  font-size: 9px;
+}
+
+.decoration-note {
+  margin: 11px 0 0;
+  color: #968680;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.decoration-note a {
+  color: #a34d64;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@keyframes preview-ornament-float {
+  50% {
+    transform: translateY(-5px) rotate(7deg);
+  }
+}
+
+@keyframes preview-ornament-pulse {
+  50% {
+    transform: scale(1.16);
+  }
+}
+
+@keyframes preview-ornament-twinkle {
+  50% {
+    opacity: 0.58;
+    transform: scale(0.85) rotate(-10deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .animation-options {
+    gap: 7px;
+  }
+
+  .animation-option {
+    gap: 6px;
+    padding: 7px;
+  }
+}

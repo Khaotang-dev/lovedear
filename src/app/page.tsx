@@ -5,6 +5,8 @@ import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import {
   buildLoveEmailHtml,
+  type LoveEmailAnimation,
+  type LoveEmailDecorationEmoji,
   type LoveEmailImageLayout,
   type LoveEmailTheme,
 } from "@/lib/love-email";
@@ -35,6 +37,26 @@ const themes: {
     description: "สดใสเหมือนวันแรกที่เจอกัน",
     swatch: "sunshine",
   },
+];
+
+const decorationEmojis: { value: LoveEmailDecorationEmoji; label: string }[] = [
+  { value: "💖", label: "หัวใจสีชมพู" },
+  { value: "💌", label: "จดหมายรัก" },
+  { value: "✨", label: "ประกายดาว" },
+  { value: "🌷", label: "ดอกทิวลิป" },
+  { value: "🧸", label: "ตุ๊กตาหมี" },
+  { value: "🌙", label: "พระจันทร์" },
+];
+
+const animationOptions: {
+  id: LoveEmailAnimation;
+  label: string;
+  description: string;
+}[] = [
+  { id: "none", label: "นิ่ง", description: "เรียบง่าย" },
+  { id: "float", label: "ลอยเบา ๆ", description: "นุ่มนวล" },
+  { id: "pulse", label: "เต้นเป็นจังหวะ", description: "มีชีวิตชีวา" },
+  { id: "twinkle", label: "วิบวับ", description: "ประกายละมุน" },
 ];
 
 const initialMessage =
@@ -271,6 +293,9 @@ export default function Home() {
   const [message, setMessage] = useState(initialMessage);
   const [signature, setSignature] = useState("รักเสมอ, คนของเธอ");
   const [theme, setTheme] = useState<LoveEmailTheme>("rose");
+  const [animation, setAnimation] = useState<LoveEmailAnimation>("float");
+  const [decorationEmoji, setDecorationEmoji] =
+    useState<LoveEmailDecorationEmoji>("💖");
   const [imageData, setImageData] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageLayout, setImageLayout] =
@@ -298,9 +323,11 @@ export default function Home() {
         message,
         signature,
         theme,
+        animation,
+        decorationEmoji,
         imageSrc: imageData ?? undefined,
       }),
-    [recipientName, message, signature, theme, imageData],
+    [recipientName, message, signature, theme, animation, decorationEmoji, imageData],
   );
   const selectedPhotoTemplate = photoTemplates.find(
     (template) => template.id === photoTemplate,
@@ -492,6 +519,8 @@ export default function Home() {
           message,
           signature,
           theme,
+          animation,
+          decorationEmoji,
           saveDraft: sendMode === "draft",
           ...(imageData ? { image: imageData } : {}),
         }),
@@ -863,6 +892,61 @@ export default function Home() {
                 </button>
               ))}
             </div>
+          </fieldset>
+
+          <div className="divider" />
+
+          <fieldset className="decoration-picker">
+            <legend className="field-label">ตกแต่งจดหมายด้วย emoji</legend>
+            <div className="emoji-options" role="group" aria-label="เลือก emoji ตกแต่ง">
+              {decorationEmojis.map((option) => (
+                <button
+                  aria-label={option.label}
+                  aria-pressed={decorationEmoji === option.value}
+                  className={`emoji-option ${decorationEmoji === option.value ? "is-selected" : ""}`}
+                  key={option.value}
+                  onClick={() => setDecorationEmoji(option.value)}
+                  title={option.label}
+                  type="button"
+                >
+                  {option.value}
+                </button>
+              ))}
+            </div>
+            <span className="field-label animation-label">ลูกเล่นเคลื่อนไหว</span>
+            <div className="animation-options" role="group" aria-label="เลือกรูปแบบภาพเคลื่อนไหว">
+              {animationOptions.map((option) => (
+                <button
+                  aria-pressed={animation === option.id}
+                  className={`animation-option ${animation === option.id ? "is-selected" : ""}`}
+                  key={option.id}
+                  onClick={() => setAnimation(option.id)}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`animation-sample animation-sample-${option.id}`}
+                  >
+                    {decorationEmoji}
+                  </span>
+                  <span className="animation-copy">
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="decoration-note">
+              แรงบันดาลใจจาก{" "}
+              <a
+                href="https://reallygoodemails.com/categories/love-romance"
+                target="_blank"
+                rel="noreferrer"
+              >
+                ตัวอย่างอีเมล Love &amp; Romance
+              </a>
+              {" · "}การเคลื่อนไหวอาจแสดงต่างกันตามแอปอีเมล
+            </p>
           </fieldset>
 
           <div className="divider" />

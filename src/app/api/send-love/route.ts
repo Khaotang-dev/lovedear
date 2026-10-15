@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { buildLoveEmailHtml, type LoveEmailTheme } from "@/lib/love-email";
+import {
+  buildLoveEmailHtml,
+  type LoveEmailAnimation,
+  type LoveEmailDecorationEmoji,
+  type LoveEmailTheme,
+} from "@/lib/love-email";
 import { randomUUID } from "node:crypto";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -10,8 +15,24 @@ const imageDataPrefix = "data:image/jpeg;base64,";
 const maxInlineImageDataLength =
   imageDataPrefix.length + Math.ceil(maxInlineImageBytes / 3) * 4;
 const themes: LoveEmailTheme[] = ["rose", "midnight", "sunshine"];
+const animations: LoveEmailAnimation[] = ["none", "float", "pulse", "twinkle"];
+const decorationEmojis: LoveEmailDecorationEmoji[] = [
+  "💖",
+  "💌",
+  "✨",
+  "🌷",
+  "🧸",
+  "🌙",
+];
 const isLoveEmailTheme = (value: unknown): value is LoveEmailTheme =>
   typeof value === "string" && themes.some((theme) => theme === value);
+const isLoveEmailAnimation = (value: unknown): value is LoveEmailAnimation =>
+  typeof value === "string" && animations.some((animation) => animation === value);
+const isLoveEmailDecorationEmoji = (
+  value: unknown,
+): value is LoveEmailDecorationEmoji =>
+  typeof value === "string" &&
+  decorationEmojis.some((emoji) => emoji === value);
 
 type SendLovePayload = {
   to?: unknown;
@@ -20,6 +41,8 @@ type SendLovePayload = {
   message?: unknown;
   signature?: unknown;
   theme?: unknown;
+  animation?: unknown;
+  decorationEmoji?: unknown;
   saveDraft?: unknown;
   image?: unknown;
 };
@@ -48,6 +71,8 @@ export async function POST(request: NextRequest) {
     message,
     signature,
     theme,
+    animation,
+    decorationEmoji,
     saveDraft,
     image,
   } = payload;
@@ -72,7 +97,10 @@ export async function POST(request: NextRequest) {
     message.length > 4000 ||
     typeof signature !== "string" ||
     signature.length > 120 ||
-    !isLoveEmailTheme(theme)
+    !isLoveEmailTheme(theme) ||
+    (animation !== undefined && !isLoveEmailAnimation(animation)) ||
+    (decorationEmoji !== undefined &&
+      !isLoveEmailDecorationEmoji(decorationEmoji))
   ) {
     return NextResponse.json(
       { error: "กรุณาตรวจสอบหัวข้อและเนื้อหาอีเมลอีกครั้ง" },
@@ -121,6 +149,10 @@ export async function POST(request: NextRequest) {
     message,
     signature,
     theme,
+    animation:
+      animation === undefined ? "float" : animation,
+    decorationEmoji:
+      decorationEmoji === undefined ? "💖" : decorationEmoji,
     imageSrc: imageData ? "cid:letter-image" : undefined,
   });
 

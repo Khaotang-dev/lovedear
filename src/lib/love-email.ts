@@ -1,11 +1,21 @@
 export type LoveEmailTheme = "rose" | "midnight" | "sunshine";
 export type LoveEmailImageLayout = "landscape" | "square" | "portrait";
+export type LoveEmailAnimation = "none" | "float" | "pulse" | "twinkle";
+export type LoveEmailDecorationEmoji =
+  | "💖"
+  | "💌"
+  | "✨"
+  | "🌷"
+  | "🧸"
+  | "🌙";
 
 export type LoveEmailContent = {
   recipientName: string;
   message: string;
   signature: string;
   theme: LoveEmailTheme;
+  animation?: LoveEmailAnimation;
+  decorationEmoji?: LoveEmailDecorationEmoji;
   imageSrc?: string;
 };
 
@@ -54,12 +64,16 @@ export function buildLoveEmailHtml({
   message,
   signature,
   theme,
+  animation = "float",
+  decorationEmoji = "💖",
   imageSrc,
 }: LoveEmailContent) {
   const palette = palettes[theme] ?? palettes.rose;
   const safeName = escapeHtml(recipientName.trim());
   const safeMessage = escapeHtml(message).replace(/\r?\n/g, "<br>");
   const safeSignature = escapeHtml(signature).replace(/\r?\n/g, "<br>");
+  const safeDecorationEmoji = escapeHtml(decorationEmoji);
+  const animationClass = animation === "none" ? "" : `motion-${animation}`;
   const greeting = safeName ? `ถึง ${safeName} คนพิเศษของเรา` : "ถึงคนพิเศษของเรา";
   const image = imageSrc
     ? `<tr><td align="center" style="padding:8px 0 24px;"><img src="${escapeHtml(imageSrc)}" alt="รูปภาพที่แนบมากับจดหมาย" width="460" style="display:block;width:100%;max-width:460px;height:auto;border:0;border-radius:12px;"></td></tr>`
@@ -75,9 +89,11 @@ export function buildLoveEmailHtml({
   <style>
     @keyframes float-up { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-7px) rotate(5deg); } }
     @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
-    .float-heart { animation: float-up 3.2s ease-in-out infinite; }
-    .pulse-heart { animation: pulse 1.7s ease-in-out infinite; }
-    @media (prefers-reduced-motion: reduce) { .float-heart,.pulse-heart { animation: none !important; } }
+    @keyframes twinkle { 0%,100% { opacity: .68; transform: scale(.92) rotate(-5deg); } 50% { opacity: 1; transform: scale(1.16) rotate(5deg); } }
+    .motion-float { animation: float-up 3.2s ease-in-out infinite; }
+    .motion-pulse { animation: pulse 1.7s ease-in-out infinite; }
+    .motion-twinkle { animation: twinkle 2.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .motion-float,.motion-pulse,.motion-twinkle { animation: none !important; } }
     @media only screen and (max-width: 520px) { .letter-wrap { padding: 24px 16px !important; } .letter-card { padding: 36px 24px !important; } }
   </style>
 </head>
@@ -91,9 +107,9 @@ export function buildLoveEmailHtml({
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
             <tr><td align="center" style="padding-bottom:26px;">
               <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
-                <td class="float-heart" style="font-family:Arial,sans-serif;font-size:17px;color:${palette.accent};padding:0 10px;">♡</td>
-                <td class="pulse-heart" style="font-family:Arial,sans-serif;font-size:29px;line-height:1;color:${palette.accent};">♥</td>
-                <td class="float-heart" style="font-family:Arial,sans-serif;font-size:17px;color:${palette.accent};padding:0 10px;">♡</td>
+                <td class="${animationClass}" style="font-family:Arial,sans-serif;font-size:18px;color:${palette.accent};padding:0 10px;">${safeDecorationEmoji}</td>
+                <td class="${animationClass}" style="font-family:Arial,sans-serif;font-size:29px;line-height:1;color:${palette.accent};">${safeDecorationEmoji}</td>
+                <td class="${animationClass}" style="font-family:Arial,sans-serif;font-size:18px;color:${palette.accent};padding:0 10px;">${safeDecorationEmoji}</td>
               </tr></table>
             </td></tr>
             <tr><td align="center" style="font-size:27px;line-height:1.45;color:${palette.ink};">${greeting}</td></tr>
@@ -103,9 +119,9 @@ export function buildLoveEmailHtml({
             ${image}
             <tr><td style="font-size:16px;line-height:1.95;color:${palette.ink};white-space:normal;">${safeMessage}</td></tr>
             <tr><td align="center" style="padding-top:34px;">
-              <span style="display:inline-block;background:${palette.soft};border-radius:50px;padding:11px 21px;font-family:Arial,sans-serif;font-size:12px;letter-spacing:1px;color:${palette.accent};">คิดถึงนะ ♡</span>
+              <span style="display:inline-block;background:${palette.soft};border-radius:50px;padding:11px 21px;font-family:Arial,sans-serif;font-size:12px;letter-spacing:1px;color:${palette.accent};">คิดถึงนะ ${safeDecorationEmoji}</span>
             </td></tr>
-            <tr><td align="center" style="padding-top:35px;font-size:17px;line-height:1.7;color:${palette.ink};">${safeSignature || "รักเสมอ ♡"}</td></tr>
+            <tr><td align="center" style="padding-top:35px;font-size:17px;line-height:1.7;color:${palette.ink};">${safeSignature || `รักเสมอ ${safeDecorationEmoji}`}</td></tr>
           </table>
         </td></tr>
         <tr><td align="center" style="padding:24px 0 0;font-family:Arial,sans-serif;font-size:11px;letter-spacing:1px;color:${palette.accent};opacity:.8;">Made with ❤️ By Khaotang</td></tr>
